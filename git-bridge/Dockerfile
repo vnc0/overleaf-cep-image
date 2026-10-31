@@ -10,7 +10,7 @@ COPY src src
 RUN --mount=type=cache,target=/root/.m2 mvn -q -B package -DskipTests \
  && cp target/*jar-with-dependencies.jar /git-bridge.jar
 
-FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS envsubst
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS envsubst
 ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go install github.com/a8m/envsubst/cmd/envsubst@v1.4.2 \
