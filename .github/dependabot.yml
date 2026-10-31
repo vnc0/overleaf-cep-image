@@ -3,9 +3,14 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+  # git-bridge is built for Java 21 (upstream's target), so only patch and
+  # minor updates of its toolchain images; major bumps are done by hand.
   - package-ecosystem: docker
     directory: /git-bridge
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /texlive
     schedule: { interval: weekly }
