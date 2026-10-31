@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go install github.com/a8m/envsubst/cmd/envsubst@v1.4.2 \
  && (cp /go/bin/envsubst /envsubst 2>/dev/null || cp /go/bin/${TARGETOS}_${TARGETARCH}/envsubst /envsubst)
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 RUN apk add --update --no-cache bash git sqlite procps htop net-tools jemalloc util-linux \
  && adduser -D node
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2 LANG=C.UTF-8
