@@ -44,11 +44,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # The TeX Live image needs more than the ~14 GB a runner has free.
+      # Only the TeX Live base build needs more than the ~14 GB a runner has free.
+      # Clear space in the background so the build can start straight away.
       - name: Free disk space
+        if: matrix.image == 'overleaf-cep'
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
-          sudo docker image prune --all --force >/dev/null || true
+          sudo setsid nohup sh -c 'rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost' >/dev/null 2>&1 &
           df -h /
 
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0

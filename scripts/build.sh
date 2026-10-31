@@ -55,19 +55,31 @@ case "$image" in
   overleaf-cep)
     cd "$SRC"
     cp server-ce/.dockerignore .dockerignore
-    build --platform "$PLATFORM" --pull --progress=plain \
-      -f server-ce/Dockerfile-base -t "overleaf-cep-base:${TAG}-${arch}" .
+    # TeX Live (scheme-full) takes ~9 minutes and changes rarely, so it lives in
+    # a prebuilt base (upstream base + TeX Live) published as a tag of the same
+    # package. The key covers everything that goes into it, plus the month so
+    # TeX Live is refreshed monthly. Normal builds only build the app on top.
+    key="$({ cat server-ce/Dockerfile-base "$HERE/texlive/Dockerfile"; echo "$TEXLIVE_MIRROR $(date -u +%Y-%m)"; } | sha256sum | cut -c1-12)"
+    base="${REGISTRY}/overleaf-cep:base-${key}-${arch}"
+    if docker pull -q "$base" >/dev/null 2>&1; then
+      echo "using prebuilt base $base"
+    else
+      echo "building base $base"
+      build --platform "$PLATFORM" --pull --progress=plain \
+        -f server-ce/Dockerfile-base -t "overleaf-cep-base:${key}-${arch}" .
+      build --platform "$PLATFORM" --progress=plain \
+        -f "$HERE/texlive/Dockerfile" \
+        --build-arg "BASE_IMAGE=overleaf-cep-base:${key}-${arch}" \
+        --build-arg "TEXLIVE_MIRROR=${TEXLIVE_MIRROR}" \
+        -t "$base" "$HERE/texlive"
+      [ "$push" = "--push" ] && docker push "$base"
+    fi
     build --platform "$PLATFORM" --progress=plain \
       -f server-ce/Dockerfile \
-      --build-arg "OVERLEAF_BASE_TAG=overleaf-cep-base:${TAG}-${arch}" \
-      -t "overleaf-cep-core:${TAG}-${arch}" .
-    build --platform "$PLATFORM" --progress=plain \
-      -f "$HERE/texlive/Dockerfile" \
-      --build-arg "BASE_IMAGE=overleaf-cep-core:${TAG}-${arch}" \
-      --build-arg "TEXLIVE_MIRROR=${TEXLIVE_MIRROR}" \
+      --build-arg "OVERLEAF_BASE_TAG=${base}" \
       --label "org.opencontainers.image.title=Overleaf Extended CE (unofficial)" \
       --label "org.opencontainers.image.description=Unofficial build of ${UPSTREAM_REPO} with full TeX Live. Not affiliated with Overleaf." \
-      "${labels[@]}" -t "$out" "$HERE/texlive"
+      "${labels[@]}" -t "$out" .
     ;;
   overleaf-cep-git-bridge)
     build --platform "$PLATFORM" --progress=plain \

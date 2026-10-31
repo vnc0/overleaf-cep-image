@@ -23,10 +23,13 @@ natively on its own runner. Tags are `<version>-r<revision>` (for example
 
 - Source: the exact upstream commit pinned in [`upstream.env`](upstream.env).
   No patches are applied; `patches/` does not exist until one is needed.
-- `overleaf-cep`: upstream's own `server-ce/Dockerfile-base` and
-  `server-ce/Dockerfile`, then [`texlive/Dockerfile`](texlive/Dockerfile),
-  which adds `scheme-full` (upstream ships `scheme-basic`, which cannot compile
-  most real documents).
+- `overleaf-cep`: upstream's own `server-ce/Dockerfile-base`, then
+  [`texlive/Dockerfile`](texlive/Dockerfile), which adds `scheme-full`
+  (upstream ships `scheme-basic`, which cannot compile most real documents),
+  then upstream's `server-ce/Dockerfile` on top. The first two steps are
+  published as a prebuilt `base-<key>-<arch>` tag and reused until the key
+  changes (a change to either Dockerfile, the mirror, or a new calendar
+  month), which keeps normal builds short.
 - `overleaf-cep-git-bridge`: [`git-bridge/Dockerfile`](git-bridge/Dockerfile)
   builds `services/git-bridge` from the same commit. Overleaf's published
   git-bridge image is amd64 only.
