@@ -1,0 +1,114 @@
+name: build
+
+# Builds both images natively on amd64 and arm64 runners, publishes them to
+# GHCR, merges each into one multi-arch tag, and attests build provenance.
+on:
+  push:
+    branches: [main]
+    paths:
+      - upstream.env
+      - texlive/**
+      - git-bridge/**
+      - scripts/**
+      - .github/workflows/build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/vnc0
+
+jobs:
+  image:
+    name: ${{ matrix.image }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: overleaf-cep, arch: amd64, runner: ubuntu-24.04 }
+          - { image: overleaf-cep, arch: arm64, runner: ubuntu-24.04-arm }
+          - { image: overleaf-cep-git-bridge, arch: amd64, runner: ubuntu-24.04 }
+          - { image: overleaf-cep-git-bridge, arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      # The TeX Live image needs more than the ~14 GB a runner has free.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force >/dev/null || true
+          df -h /
+
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: scripts/build.sh "${{ matrix.image }}" "${{ matrix.arch }}" --push
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+
+  manifest:
+    name: ${{ matrix.image }} (multi-arch)
+    needs: image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        image: [overleaf-cep, overleaf-cep-git-bridge]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Merge per-arch images into one multi-arch tag
+        id: merge
+        run: |
+          . ./upstream.env
+          tag="${VERSION}-r${REVISION}"
+          name="${REGISTRY}/${{ matrix.image }}"
+          docker buildx imagetools create \
+            -t "${name}:${tag}" -t "${name}:${VERSION}" \
+            "${name}:${tag}-amd64" "${name}:${tag}-arm64"
+          digest="$(docker buildx imagetools inspect "${name}:${tag}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### ${{ matrix.image }}"
+            echo
+            echo '```'
+            echo "${name}:${tag}@${digest}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ steps.merge.outputs.name }}
+          subject-digest: ${{ steps.merge.outputs.digest }}
+          push-to-registry: true
