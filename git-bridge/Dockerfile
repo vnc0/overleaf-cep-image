@@ -2,7 +2,7 @@
 # Overleaf git-bridge built from the pinned yu-i-i/overleaf-cep source so it
 # can ship for amd64 and arm64 (quay.io/sharelatex/git-bridge is amd64 only).
 # Mirrors Overleaf's own image: jar + envsubst + start scripts, user "node".
-FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-21 AS jar
+FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-26 AS jar
 WORKDIR /src
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -q -B dependency:go-offline
