@@ -59,7 +59,14 @@ scripts/build.sh overleaf-cep-git-bridge arm64
   commit can differ in package versions. That is the one non-reproducible
   input; the `REVISION` number records each rebuild.
 - Compiles run inside the Overleaf container, not in sandboxed containers.
-  Only give accounts to people you trust.
+  TeX Live's shell escape is restricted (`shell_escape=p`), so a document
+  cannot run arbitrary commands; `\write18{touch ...}` and Lua `io.popen` were
+  tested and are blocked. It can still read any file, and any other process's
+  environment, that the compile user can read (`openin_any=a`; tested with
+  `\input` and LuaTeX `io.open`, including `/proc/<pid>/environ` of another
+  process of the same user). Treat every account as able to read the
+  container's configuration and secrets, and only give accounts to people you
+  trust. Sandboxed compiles need the Docker socket and are not used here.
 
 ## Updating
 
