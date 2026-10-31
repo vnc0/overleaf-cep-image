@@ -38,17 +38,30 @@ labels=(
 )
 out="${REGISTRY}/${image}:${TAG}-${arch}"
 
+# Upstream's yarn step fetches git dependencies and builds them against the npm
+# registry, which fails sporadically on CI runners. Layers that succeeded are
+# cached, so a retry only repeats the failed step.
+build() {
+  local n
+  for n in 1 2 3; do
+    docker build "$@" && return 0
+    echo "docker build failed (attempt $n/3)" >&2
+    sleep 20
+  done
+  return 1
+}
+
 case "$image" in
   overleaf-cep)
     cd "$SRC"
     cp server-ce/.dockerignore .dockerignore
-    docker build --platform "$PLATFORM" --pull --progress=plain \
+    build --platform "$PLATFORM" --pull --progress=plain \
       -f server-ce/Dockerfile-base -t "overleaf-cep-base:${TAG}-${arch}" .
-    docker build --platform "$PLATFORM" --progress=plain \
+    build --platform "$PLATFORM" --progress=plain \
       -f server-ce/Dockerfile \
       --build-arg "OVERLEAF_BASE_TAG=overleaf-cep-base:${TAG}-${arch}" \
       -t "overleaf-cep-core:${TAG}-${arch}" .
-    docker build --platform "$PLATFORM" --progress=plain \
+    build --platform "$PLATFORM" --progress=plain \
       -f "$HERE/texlive/Dockerfile" \
       --build-arg "BASE_IMAGE=overleaf-cep-core:${TAG}-${arch}" \
       --build-arg "TEXLIVE_MIRROR=${TEXLIVE_MIRROR}" \
@@ -57,7 +70,7 @@ case "$image" in
       "${labels[@]}" -t "$out" "$HERE/texlive"
     ;;
   overleaf-cep-git-bridge)
-    docker build --platform "$PLATFORM" --progress=plain \
+    build --platform "$PLATFORM" --progress=plain \
       -f "$HERE/git-bridge/Dockerfile" \
       --label "org.opencontainers.image.title=Overleaf git-bridge (unofficial)" \
       --label "org.opencontainers.image.description=git-bridge from ${UPSTREAM_REPO}, built for amd64 and arm64. Not affiliated with Overleaf." \
